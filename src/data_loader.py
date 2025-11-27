@@ -11,8 +11,7 @@ def optimize_floats(df):
 
 def optimize_objects(df):
     """Converte strings repetitivas em Categoria para economizar até 80% de RAM"""
-    # Colunas que sabemos que são categorias (poucos valores únicos)
-    # Adicione aqui outras colunas de texto que se repetem muito (ex: situacao_cadastral)
+
     cat_cols = ['uf', 'cnae_fiscal_principal', 'mudou_situacao', 'tem_debito_governo', 'tem_acao_judicial', 'em_risco']
     
     for col in cat_cols:
@@ -27,33 +26,23 @@ def load_split(client, split_name):
     
     limit_clause = "LIMIT 100000" if split_name == "treino" else "LIMIT 20000"
     
-    # --- OTIMIZAÇÃO 1: RESOLVER O ARRAY (UF) NO SQL ---
-    # Usamos SELECT * EXCEPT(uf) para pegar tudo menos o array
-    # E recriamos uf pegando só o primeiro item: uf[SAFE_OFFSET(0)]
-    # Isso evita o uso de .apply() no Python que mata a memória
     query = f"""
         SELECT * EXCEPT(uf), 
         CAST(uf[SAFE_OFFSET(0)] AS STRING) as uf 
         FROM {table_ref} 
+        ORDER BY data_ref DESC
         {limit_clause}
     """
     
-    print(f"Carregando {table_id} (Query Otimizada)...")
+    print(f"Carregando {table_id} (Ordenado por data)...")
     
-    # Usa a API de Storage para baixar mais rápido (se disponível)
     df = client.query(query).to_dataframe(create_bqstorage_client=True)
     
-    # --- OTIMIZAÇÃO 2 e 3: REDUÇÃO DE TIPOS ---
-    # Converter numéricas para float32
+    # Otimização de tipos (Low Memory)
     df = optimize_floats(df)
-    
-    # Converter texto para category
     df = optimize_objects(df)
 
-    # Verifica uso de memória
-    mem_usage = df.memory_usage(deep=True).sum() / 1024**2
-    print(f"Carregado {split_name}: {len(df)} registros. Memória: {mem_usage:.2f} MB")
-    
+    print(f"Carregado {split_name}: {len(df)} registros.")
     return df
 
 def get_data_splits():
