@@ -11,12 +11,15 @@ from src.mlflow_registry import register_model_to_registry
 class TrainingPipeline:
     
     def __init__(self):
-        self.spark = SparkSession.builder \
-            .appName("CNPJ-Risk-Training") \
-            .config("spark.sql.shuffle.partitions", "200") \
-            .getOrCreate()
-        
-        self.setup_mlflow()
+            jar_path = "/app/jars/spark-bigquery-with-dependencies.jar"
+
+            self.spark = SparkSession.builder \
+                .appName("CNPJ-Risk-Training") \
+                .config("spark.sql.shuffle.partitions", "200") \
+                .config("spark.jars", jar_path) \
+                .getOrCreate()
+            
+            self.setup_mlflow()
     
     def setup_mlflow(self):
         """Configurar MLflow"""
