@@ -1,5 +1,25 @@
 from google.cloud import bigquery
+import pandas as pd
+import numpy as np
 from src.config import GCP_PROJECT, DATASET, SPLITS, BQ_LOCATION
+
+def optimize_floats(df):
+    """Converte float64 para float32 para economizar 50% de RAM nas numéricas"""
+    floats = df.select_dtypes(include=['float64']).columns.tolist()
+    df[floats] = df[floats].astype('float32')
+    return df
+
+def optimize_objects(df):
+    """Converte strings repetitivas em Categoria para economizar até 80% de RAM"""
+    # Colunas que sabemos que são categorias (poucos valores únicos)
+    # Adicione aqui outras colunas de texto que se repetem muito (ex: situacao_cadastral)
+    cat_cols = ['uf', 'cnae_fiscal_principal', 'mudou_situacao', 'tem_debito_governo', 'tem_acao_judicial', 'em_risco']
+    
+    for col in cat_cols:
+        if col in df.columns:
+            # O tipo 'category' usa inteiros por trás, gastando muito menos memória que 'object'
+            df[col] = df[col].astype('category')
+    return df
 
 def load_split(client, split_name):
     table_id = SPLITS[split_name]
@@ -7,21 +27,33 @@ def load_split(client, split_name):
     
     limit_clause = "LIMIT 100000" if split_name == "treino" else "LIMIT 20000"
     
-    query = f"SELECT * FROM {table_ref} {limit_clause}"
+    # --- OTIMIZAÇÃO 1: RESOLVER O ARRAY (UF) NO SQL ---
+    # Usamos SELECT * EXCEPT(uf) para pegar tudo menos o array
+    # E recriamos uf pegando só o primeiro item: uf[SAFE_OFFSET(0)]
+    # Isso evita o uso de .apply() no Python que mata a memória
+    query = f"""
+        SELECT * EXCEPT(uf), 
+        CAST(uf[SAFE_OFFSET(0)] AS STRING) as uf 
+        FROM {table_ref} 
+        {limit_clause}
+    """
     
-    print(f"Carregando {table_id}...")
-    df = client.query(query).to_dataframe()
+    print(f"Carregando {table_id} (Query Otimizada)...")
     
-    if 'uf' in df.columns:
-        df['uf'] = df['uf'].apply(lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x)
-        df['uf'] = df['uf'].astype(str)
+    # Usa a API de Storage para baixar mais rápido (se disponível)
+    df = client.query(query).to_dataframe(create_bqstorage_client=True)
+    
+    # --- OTIMIZAÇÃO 2 e 3: REDUÇÃO DE TIPOS ---
+    # Converter numéricas para float32
+    df = optimize_floats(df)
+    
+    # Converter texto para category
+    df = optimize_objects(df)
 
-    cols_check = ['total_debito', 'em_risco', 'tem_debito_governo']
-    for col in cols_check:
-        if col in df.columns:
-            df[col] = df[col].astype(float)
-            
-    print(f"Carregado {split_name}: {len(df)}")
+    # Verifica uso de memória
+    mem_usage = df.memory_usage(deep=True).sum() / 1024**2
+    print(f"Carregado {split_name}: {len(df)} registros. Memória: {mem_usage:.2f} MB")
+    
     return df
 
 def get_data_splits():
