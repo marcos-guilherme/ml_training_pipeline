@@ -12,9 +12,9 @@ steps:
       - --entry-point=train_model
       - --trigger-http
       - --allow-unauthenticated
-      - --memory=4Gi  
+      - --memory=4Gi
       - --timeout=1800
-      - --set-env-vars=MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME}
+      - --set-env-vars=GCP_PROJECT=${PROJECT_ID},MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME}
       - --set-secrets=MLFLOW_TRACKING_PASSWORD=mlflow_tracking_password:latest
 
 substitutions:
