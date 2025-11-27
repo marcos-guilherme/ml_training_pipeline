@@ -8,3 +8,5 @@ python-dotenv
 flask
 pyarrow
 db-dtypes
+matplotlib
+seaborn

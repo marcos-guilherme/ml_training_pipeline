@@ -32,19 +32,19 @@ class TrainingPipeline:
             print("2. Criando processador...")
             preprocessor = get_preprocessor()
             
-            # 3. Treinar
             print("3. Treinando...")
+            from src.model_training import train_random_forest
+
             model, run_id, auc_val = train_random_forest(
-                df_train, df_val, preprocessor, params, run_name="Pandas_100k"
-            )
+                        df_train, df_val, preprocessor, params, run_name="Full_Metrics_Run"
+                    )
             
-            # 4. Avaliar (Você precisará adaptar o model_evaluation.py para sklearn também)
-            # Como o modelo é um pipeline, ele já faz o transform internamente no predict
-            # auc_test = evaluate_on_test(model, df_test) 
-            # (Simplificando aqui para garantir o fluxo):
-            from sklearn.metrics import roc_auc_score
-            auc_test = roc_auc_score(df_test["em_risco"], model.predict_proba(df_test.drop(columns="em_risco"))[:, 1])
-            print(f"AUC Teste: {auc_test:.4f}")
+            # 4. Avaliar
+            # Reabrimos a run pelo ID para adicionar as métricas de teste
+            with mlflow.start_run(run_id=run_id):
+                print("4. Avaliando no teste (Anexando à mesma Run)...")
+                from src.model_evaluation import evaluate_on_test
+                auc_test = evaluate_on_test(model, df_test)
 
             # 5. Registrar
             if auc_test < MIN_AUC_THRESHOLD:
