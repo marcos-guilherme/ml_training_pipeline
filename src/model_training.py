@@ -10,34 +10,40 @@ from sklearn.metrics import (
     confusion_matrix
 )
 import mlflow
-import mlflow.sklearn
+from mlflow import sklearn as mlflow_sklearn
 from mlflow.models.signature import infer_signature
+
+# Importamos as listas de features que definimos como "Oficiais"
+from src.config import CATEGORICAL_FEATURES, NUMERIC_FEATURES
 
 def train_generic_model(df_train, df_val, model_strategy, preprocessor, run_name=None):
     """
-    Treina qualquer modelo que implemente a BaseModelStrategy.
-    Substitui a antiga 'train_random_forest'.
+    Treina o modelo garantindo que APENAS as features selecionadas entrem.
     """
     
-    # 1. Separação Feature (X) vs Target (y)
+    selected_features = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+    
+    print(f"Selecionando apenas as {len(selected_features)} features oficiais...")
+
+    cols_to_keep = selected_features + ["em_risco"]
+    
+    df_train = df_train[cols_to_keep]
+    df_val = df_val[cols_to_keep]
+
     X_train = df_train.drop(columns=["em_risco"])
     y_train = df_train["em_risco"]
     
     X_val = df_val.drop(columns=["em_risco"])
     y_val = df_val["em_risco"]
 
-    # 2. Constroi o pipeline usando a estrategia escolhida (RandomForest, XGBoost, etc)
-    # Aqui está a mágica do Strategy Pattern
     clf = model_strategy.build_pipeline(preprocessor)
 
     print(f"Treinando estratégia: {model_strategy.__class__.__name__}...")
     clf.fit(X_train, y_train)
 
-    # 3. Predições
     y_pred_val = clf.predict(X_val)
     y_pred_proba_val = clf.predict_proba(X_val)[:, 1]
     
-    # 4. Cálculo de Métricas
     metrics = {
         "auc_val": roc_auc_score(y_val, y_pred_proba_val),
         "accuracy_val": accuracy_score(y_val, y_pred_val),
@@ -46,14 +52,10 @@ def train_generic_model(df_train, df_val, model_strategy, preprocessor, run_name
         "f1_val": f1_score(y_val, y_pred_val, zero_division=0)
     }
     
-    # Loga parametros da estrategia (ex: numTrees, maxDepth)
     mlflow.log_params(model_strategy.get_params())
     mlflow.log_metrics(metrics)
     
-    # 5. Artefatos Visuais
     print("Gerando gráficos...")
-    
-    # A) Matriz de Confusão Normalizada
     try:
         cm = confusion_matrix(y_val, y_pred_val, normalize='true')
         plt.figure(figsize=(7, 6))
@@ -76,8 +78,6 @@ def train_generic_model(df_train, df_val, model_strategy, preprocessor, run_name
     except Exception as e:
         print(f"Erro grafico CM: {e}")
 
-    # B) Feature Importance (se o modelo suportar)
-    # Verificamos se o classificador final tem o atributo feature_importances_
     if hasattr(clf.named_steps['classifier'], 'feature_importances_'):
         try:
             feature_names = preprocessor.get_feature_names_out()
@@ -94,13 +94,12 @@ def train_generic_model(df_train, df_val, model_strategy, preprocessor, run_name
             plt.close()
             mlflow.log_artifact("feature_importance.png")
         except Exception as e:
-            print(f"Erro grafico Features: {e}")
+            pass
 
-    # 6. Log do Modelo
+ 
     signature = infer_signature(X_train, clf.predict(X_train))
-    mlflow.sklearn.log_model(clf, "model", signature=signature)
+    mlflow_sklearn.log_model(clf, "model", signature=signature)
     
-    # Limpeza
     if os.path.exists("confusion_matrix.png"): os.remove("confusion_matrix.png")
     if os.path.exists("feature_importance.png"): os.remove("feature_importance.png")
     
