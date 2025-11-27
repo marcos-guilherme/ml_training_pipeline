@@ -1,11 +1,11 @@
-functions-framework==3.*
-google-cloud-bigquery>=3.0.0
+flask
+gunicorn
+google-cloud-bigquery
 google-cloud-bigquery-storage
 pandas
 scikit-learn
 mlflow
 python-dotenv
-flask
 pyarrow
 db-dtypes
 matplotlib

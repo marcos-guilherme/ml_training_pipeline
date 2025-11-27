@@ -1,21 +1,34 @@
 steps:
+  # 1. Build da imagem
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/ml-pipeline-repo/train-service:latest'
+      - '.'
+
+  # 2. Push da imagem
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'push'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/ml-pipeline-repo/train-service:latest'
+
+  # 3. Deploy no Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
     args:
-      - gcloud
-      - functions
-      - deploy
-      - train_model
-      - --gen2
-      - --runtime=python311
-      - --region=us-central1
-      - --source=.
-      - --entry-point=train_model
-      - --trigger-http
-      - --allow-unauthenticated
-      - --memory=4Gi
-      - --timeout=1800
-      - --set-env-vars=GCP_PROJECT=${PROJECT_ID},MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME}
-      - --set-secrets=MLFLOW_TRACKING_PASSWORD=mlflow_tracking_password:latest
+      - 'run'
+      - 'deploy'
+      - 'train-service'
+      - '--image=us-central1-docker.pkg.dev/${PROJECT_ID}/ml-pipeline-repo/train-service:latest'
+      - '--region=us-central1'
+      - '--memory=4Gi'
+      - '--cpu=2'
+      - '--timeout=3600'
+      - '--concurrency=1'
+      - '--allow-unauthenticated'
+      - '--set-env-vars=GCP_PROJECT=${PROJECT_ID},MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME}'
+      - '--set-secrets=MLFLOW_TRACKING_PASSWORD=mlflow_tracking_password:latest'
 
 substitutions:
   _MLFLOW_TRACKING_URI: 'https://mlflow-tracking-server-459145800613.us-central1.run.app'

@@ -1,26 +1,21 @@
 FROM python:3.11-slim
 
-RUN mkdir -p /usr/share/man/man1 && \
-    apt-get update && \
-    apt-get install -y openjdk-21-jre-headless procps curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-
-ENV SPARK_LOCAL_IP=127.0.0.1
-ENV _JAVA_OPTIONS="-Djava.net.preferIPv4Stack=true"
-
+# Instala dependencias do sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-RUN mkdir -p /app/jars && \
-    curl -o /app/jars/spark-bigquery-with-dependencies.jar \
-    https://storage.googleapis.com/hadoop-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.34.0.jar
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD exec functions-framework --target=train_model
+# Gunicorn deve ouvir na variavel PORT
+# Timeout alto (3600s) para garantir o treino
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 3600 main:app
