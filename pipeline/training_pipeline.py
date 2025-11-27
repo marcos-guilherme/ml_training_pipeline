@@ -5,22 +5,29 @@ from src.config import MLFLOW_TRACKING_URI, MLFLOW_USERNAME, MLFLOW_PASSWORD, ML
 from src.data_loader import get_data_splits
 from src.preprocessing import get_preprocessor
 from src.mlflow_registry import register_model_to_registry
+from src.models.factory import ModelFactory
+from src.model_training import train_generic_model
 
 class TrainingPipeline:
     
-    def __init__(self):
+    def __init__(self, experiment_name=None):
+        # Permite sobrescrever o nome do experimento
+        self.experiment_name = experiment_name or MLFLOW_EXPERIMENT
         self.setup_mlflow()
     
     def setup_mlflow(self):
         os.environ["MLFLOW_TRACKING_USERNAME"] = MLFLOW_USERNAME
         os.environ["MLFLOW_TRACKING_PASSWORD"] = MLFLOW_PASSWORD
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-        mlflow.set_experiment(MLFLOW_EXPERIMENT)
+        print(f"Definindo experimento: {self.experiment_name}")
+        mlflow.set_experiment(self.experiment_name)
     
     def run(self, params=None):
         try:
             params = params or DEFAULT_PARAMS
-            print(f"Iniciando Pipeline. Params: {params}")
+            model_type = params.get("model_type", "random_forest")
+            
+            print(f"Iniciando Pipeline. Modelo: {model_type}. Params: {params}")
             
             print("1. Carregando dados...")
             df_train, df_val, df_test = get_data_splits()
@@ -28,23 +35,21 @@ class TrainingPipeline:
             print("2. Preprocessamento...")
             preprocessor = get_preprocessor()
             
-            # Abre sessao unica do MLflow
-            with mlflow.start_run(run_name="CloudRun_Training") as run:
+            model_strategy = ModelFactory.get_strategy(model_type, params)
+            
+            with mlflow.start_run(run_name=f"Train_{model_type}") as run:
                 run_id = run.info.run_id
-                print(f"Run aberta: {run_id}")
                 
-                # 3. Treino
-                from src.model_training import train_random_forest
-                model, _, auc_val = train_random_forest(
-                    df_train, df_val, preprocessor, params
+                # 4. Treina usando o executor generico
+                from src.model_training import train_generic_model
+                model, _, auc_val = train_generic_model(
+                    df_train, df_val, model_strategy, preprocessor
                 )
                 
-                # 4. Avaliacao
-                print("4. Avaliando teste...")
+                print("5. Avaliando teste...")
                 from src.model_evaluation import evaluate_on_test
                 auc_test = evaluate_on_test(model, df_test)
 
-                # 5. Registro
                 if auc_test < MIN_AUC_THRESHOLD:
                     print(f"Performance baixa ({auc_test}). Descartado.")
                     mlflow.set_tag("status_modelo", "descartado")
@@ -57,7 +62,8 @@ class TrainingPipeline:
                 return {
                     "status": "success",
                     "run_id": run_id,
-                    "auc_test": auc_test
+                    "auc_test": auc_test,
+                    "model_type": model_type
                 }
 
         except Exception as e:

@@ -8,11 +8,14 @@ app = Flask(__name__)
 def entry_point():
     try:
         content = request.json
-        params = content.get('params', None)
+        params = content.get('params', {})
+        # Captura nome do experimento (opcional)
+        experiment_name = content.get('experiment_name', None)
         
-        print(f"Recebendo requisicao. Params: {params}")
+        print(f"Req recebida. Exp: {experiment_name}. Params: {params}")
 
-        pipeline = TrainingPipeline()
+        # Passa o nome para o pipeline
+        pipeline = TrainingPipeline(experiment_name=experiment_name)
         result = pipeline.run(params=params)
         
         status_code = 200 if result.get("status") == "success" else 400
@@ -27,6 +30,7 @@ def health_check():
     return "OK", 200
 
 if __name__ == "__main__":
+    
     # Garante que usa a PORTA injetada pelo ambiente
     port = int(os.environ.get("PORT", 8080))
     app.run(debug=True, host="0.0.0.0", port=port)
