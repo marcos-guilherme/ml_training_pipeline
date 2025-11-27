@@ -1,13 +1,18 @@
 FROM python:3.11-slim
 
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jre-headless procps && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
 WORKDIR /app
 
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV PORT=8080
 
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 cloud_function:train_model
+CMD exec functions-framework --target=train_model

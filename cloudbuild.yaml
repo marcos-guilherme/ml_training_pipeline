@@ -1,28 +1,28 @@
 steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/${trabalho-final-pdm-478021}/cloud-run-source-deploy/train-model:latest', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/${trabalho-final-pdm-478021}/cloud-run-source-deploy/train-model:latest']
+
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
     args:
-      - gcloud
-      - functions
-      - deploy
-      - train_model
-      - --gen2
-      - --runtime=python311
-      - --region=us-central1
-      - --source=.
-      - --entry-point=train_model
-      - --trigger-http
-      - --allow-unauthenticated
-      - --memory=2GB
-      - --timeout=1800
-      - --max-instances=10
-      - --set-env-vars=MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME}
-      - --set-secrets=MLFLOW_TRACKING_PASSWORD=mlflow_tracking_password:latest
+      - 'run'
+      - 'deploy'
+      - 'train-model'
+      - '--image=us-central1-docker.pkg.dev/${trabalho-final-pdm-478021}/cloud-run-source-deploy/train-model:latest'
+      - '--region=us-central1'
+      - '--memory=2Gi'     
+      - '--cpu=2'          
+      - '--timeout=1800'   
+      - '--allow-unauthenticated'
+      - '--set-env-vars=MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME}'
+      - '--set-secrets=MLFLOW_TRACKING_PASSWORD=mlflow_tracking_password:latest'
 
 substitutions:
   _MLFLOW_TRACKING_URI: 'https://mlflow-tracking-server-459145800613.us-central1.run.app'
   _MLFLOW_USERNAME: 'mlflow_user'
-
-timeout: '2000s'
 
 options:
   logging: CLOUD_LOGGING_ONLY
