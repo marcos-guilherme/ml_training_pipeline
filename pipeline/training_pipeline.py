@@ -2,7 +2,7 @@ import mlflow
 import os
 import traceback
 from src.config import MLFLOW_TRACKING_URI, MLFLOW_USERNAME, MLFLOW_PASSWORD, MLFLOW_EXPERIMENT, DEFAULT_PARAMS, MIN_AUC_THRESHOLD
-from src.data_loader import load_all_splits
+from src.data_loader import get_data_splits
 from src.preprocessing import get_preprocessor
 from src.model_training import train_random_forest
 from src.model_evaluation import evaluate_on_test # Lembre de atualizar este para sklearn também!
@@ -26,7 +26,7 @@ class TrainingPipeline:
             
             # 1. Carregar dados (Limitados a 100k)
             print("1. Carregando dados...")
-            df_train, df_val, df_test = load_all_splits()
+            df_train, df_val, df_test = get_data_splits()
             
             # 2. Pré-processador
             print("2. Criando processador...")
