@@ -1,64 +1,40 @@
 from google.cloud import bigquery
-from src.config import GCP_PROJECT, DATASET, TABLE_NAME, BQ_LOCATION
+from src.config import GCP_PROJECT, DATASET, SPLITS, BQ_LOCATION
 
-def load_full_dataset():
-    """Carrega uma janela de dados da tabela única"""
-    client = bigquery.Client(project=GCP_PROJECT, location=BQ_LOCATION)
+def load_split(client, split_name):
+    """Carrega uma tabela já pronta do BigQuery"""
     
-    # 140k linhas no total (100k treino + 20k val + 20k teste)
-    LIMIT = 140000
-    table_ref = f"`{GCP_PROJECT}.{DATASET}.{TABLE_NAME}`"
+    table_id = SPLITS[split_name]
+    table_ref = f"`{GCP_PROJECT}.{DATASET}.{table_id}`"
     
-    # Ordena por data DESC (do mais novo para o mais velho)
+    limit_clause = "LIMIT 100000" if split_name == "treino" else "LIMIT 20000"
+
     query = f"""
         SELECT * FROM {table_ref}
-        ORDER BY data_ref DESC
-        LIMIT {LIMIT}
+        {limit_clause}
     """
     
-    print(f"Carregando {LIMIT} linhas da tabela {TABLE_NAME}...")
+    print(f"Carregando tabela {table_id}...")
     df = client.query(query).to_dataframe()
     
-    # Tratamento UF (Array -> String)
+    # Tratamento UF (Array -> String) 
     if 'uf' in df.columns:
         df['uf'] = df['uf'].apply(lambda x: x[0] if isinstance(x, list) and len(x) > 0 else x)
         df['uf'] = df['uf'].astype(str)
-        
-    print(f"Total carregado: {len(df)} linhas.")
+
+    for col in ['total_debito', 'em_risco']:
+        if col in df.columns:
+            df[col] = df[col].astype(float)
+            
+    print(f"Carregado {split_name}: {len(df)} registros.")
     return df
 
-def get_data_splits():
-    """Divide o dataframe único em Treino, Validação e Teste"""
-    df = load_full_dataset()
+def get_data_splits(): # Mantive o nome da função pra não quebrar o pipeline.py
+    """Carrega as 3 tabelas prontas"""
+    client = bigquery.Client(project=GCP_PROJECT, location=BQ_LOCATION)
     
-    if len(df) < 1000:
-        raise ValueError("Poucos dados para dividir! Verifique a tabela.")
-
-    # Como ordenamos DESC (novos primeiro), o fatiamento é:
-    # 0 a 20k: Teste (O futuro)
-    # 20k a 40k: Validação
-    # 40k em diante: Treino (O passado)
-    
-    test_size = 20000
-    val_size = 20000
-    
-    # Ajuste de segurança caso tenha menos de 140k linhas
-    if len(df) < (test_size + val_size + 100):
-        # Se tiver poucos dados, faz divisão percentual simples (20% teste, 20% val)
-        test_end = int(len(df) * 0.2)
-        val_end = int(len(df) * 0.4)
-    else:
-        test_end = test_size
-        val_end = test_size + val_size
-
-    # Fatiamento (Slicing)
-    df_test = df.iloc[0:test_end].copy()
-    df_val = df.iloc[test_end:val_end].copy()
-    df_train = df.iloc[val_end:].copy()
-    
-    print(f"Splits criados:")
-    print(f"Treino: {len(df_train)} (Passado)")
-    print(f"Validacao: {len(df_val)}")
-    print(f"Teste: {len(df_test)} (Futuro/Recente)")
+    df_train = load_split(client, "treino")
+    df_val = load_split(client, "validacao")
+    df_test = load_split(client, "teste")
     
     return df_train, df_val, df_test
