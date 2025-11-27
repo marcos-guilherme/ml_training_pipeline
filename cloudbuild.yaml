@@ -1,31 +1,28 @@
 steps:
-  - name: 'gcr.io/cloud-builders/gcloud'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     args:
-      - 'functions'
-      - 'deploy'
-      - 'train_model'
-      - '--gen2'
-      - '--runtime=python311'
-      - '--region=us-central1'
-      - '--source=.'
-      - '--entry-point=train_model'
-      - '--trigger-http'
-      - '--allow-unauthenticated'
-      - '--memory=2GB'
-      - '--timeout=600'
-      - '--max-instances=10'
-      - '--set-env-vars=MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME},MLFLOW_TRACKING_PASSWORD=${_MLFLOW_PASSWORD}'
-
+      - gcloud
+      - functions
+      - deploy
+      - train_model
+      - --gen2
+      - --runtime=python311
+      - --region=us-central1
+      - --source=.
+      - --entry-point=train_model
+      - --trigger-http
+      - --allow-unauthenticated
+      - --memory=2GB
+      - --timeout=1800
+      - --max-instances=10
+      - --set-env-vars=MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI},MLFLOW_TRACKING_USERNAME=${_MLFLOW_USERNAME}
+      - --set-secrets=MLFLOW_TRACKING_PASSWORD=mlflow_password:latest
 
 substitutions:
   _MLFLOW_TRACKING_URI: 'https://mlflow-tracking-server-459145800613.us-central1.run.app'
   _MLFLOW_USERNAME: 'mlflow_user'
-  _MLFLOW_PASSWORD: 'Humilde-123'
 
-# Timeout total
-timeout: '1200s'
+timeout: '2000s'
 
-# Opções
 options:
-  machineType: 'E2_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
