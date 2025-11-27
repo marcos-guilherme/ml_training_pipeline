@@ -8,8 +8,11 @@ RUN mkdir -p /usr/share/man/man1 && \
 
 ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
-WORKDIR /app
+ENV SPARK_LOCAL_IP=127.0.0.1
+ENV _JAVA_OPTIONS="-Djava.net.preferIPv4Stack=true"
 
+
+WORKDIR /app
 
 RUN mkdir -p /app/jars && \
     curl -o /app/jars/spark-bigquery-with-dependencies.jar \

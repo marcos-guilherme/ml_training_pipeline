@@ -17,6 +17,10 @@ class TrainingPipeline:
                 .appName("CNPJ-Risk-Training") \
                 .config("spark.sql.shuffle.partitions", "200") \
                 .config("spark.jars", jar_path) \
+                .config("spark.driver.bindAddress", "127.0.0.1") \
+                .config("spark.driver.host", "127.0.0.1") \
+                .config("spark.driver.port", "4040") \
+                .config("spark.ui.enabled", "false") \
                 .getOrCreate()
             
             self.setup_mlflow()
