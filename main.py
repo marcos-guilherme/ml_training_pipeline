@@ -1,37 +1,43 @@
-import sys
-import json
+import functions_framework
+from flask import jsonify
 from pipeline.training_pipeline import TrainingPipeline
+import os
 
-def main(custom_params=None):
-    """Executar pipeline de treinamento"""
+@functions_framework.http
+def train_model(request):
+    """
+    Função de entrada do Cloud Functions.
+    Nome deve bater com --entry-point no cloudbuild.yaml
+    """
     
-    pipeline = TrainingPipeline()
+    # 1. Parsing de argumentos opcionais (via JSON no POST)
+    # Ex: {"numTrees": 50, "maxDepth": 10}
+    request_json = request.get_json(silent=True)
+    params = None
     
+    if request_json and 'params' in request_json:
+        params = request_json['params']
+    
+    print(f"Recebida requisicao de treino. Params: {params}")
+
     try:
-        result = pipeline.run(params=custom_params)
-        print(json.dumps(result, indent=2))
-        return result
-    
+        pipeline = TrainingPipeline()
+    except Exception as e:
+        print(f"Erro fatal ao iniciar Spark: {e}")
+        return jsonify({"status": "error", "message": "Falha ao iniciar Spark/Pipeline", "details": str(e)}), 500
+
+    try:
+        # Roda o treino
+        result = pipeline.run(params=params)
+        
+        status_code = 200 if result.get("status") == "success" else 400
+        return jsonify(result), status_code
+
+    except Exception as e:
+        print(f"Erro durante execucao do pipeline: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+        
     finally:
-        pipeline.close()
 
-def parse_args():
-    """Parser robusto de argumentos"""
-    custom_params = None
-    
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
-        try:
-            # Tentar parsear como JSON
-            custom_params = json.loads(arg)
-        except json.JSONDecodeError:
-            print(f"Erro ao parsear JSON: {arg}")
-            print("Use: python main.py ou python main.py '{\"numTrees\": 150}'")
-            sys.exit(1)
-    
-    return custom_params
-
-if __name__ == "__main__":
-    custom_params = parse_args()
-    result = main(custom_params=custom_params)
-    sys.exit(0 if result["status"] == "success" else 1)
+        if pipeline:
+            pipeline.close()
